@@ -1,0 +1,225 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart City - Live Traffic Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .status-bar {
+            text-align: center;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+
+        .connected {
+            background: #166534;
+            color: #bbf7d0;
+        }
+
+        .disconnected {
+            background: #991b1b;
+            color: #fecaca;
+        }
+
+        .reconnecting {
+            background: #854d0e;
+            color: #fef08a;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .intersection {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+
+            .intersection.emergency {
+                border-color: #ef4444;
+                box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+                animation: pulse 1s infinite;
+            }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+            }
+
+            50% {
+                box-shadow: 0 0 30px rgba(239, 68, 68, 1);
+            }
+        }
+
+        .circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            margin: 0 auto 8px;
+            background: #475569;
+            transition: background 0.15s ease;
+            box-shadow: 0 0 0 4px rgba(0,0,0,0.3);
+        }
+
+            .circle.RED {
+                background: #ef4444;
+                box-shadow: 0 0 15px #ef4444;
+            }
+
+            .circle.YELLOW {
+                background: #eab308;
+                box-shadow: 0 0 15px #eab308;
+            }
+
+            .circle.GREEN {
+                background: #22c55e;
+                box-shadow: 0 0 15px #22c55e;
+            }
+
+        .id {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .meta {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        .latency {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚦 Smart City — Live Traffic Dashboard</h1>
+    <div class="status-bar">
+        Connection: <span id="status" class="connection-status disconnected">Disconnected</span>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <div class="latency" id="latency">Last update latency: — ms</div>
+
+    <script>
+        const INTERSECTION_COUNT = 20;
+        const grid = document.getElementById("grid");
+        const statusEl = document.getElementById("status");
+        const latencyEl = document.getElementById("latency");
+
+        for (let i = 101; i <= 100 + INTERSECTION_COUNT; i++) {
+            const card = document.createElement("div");
+            card.className = "intersection";
+            card.id = `intersection-${i}`;
+            card.innerHTML = `
+                <div class="circle" id="circle-${i}"></div>
+                <div class="id">#${i}</div>
+                <div class="meta" id="meta-${i}">Normal</div>
+            `;
+            grid.appendChild(card);
+        }
+
+        // CORRECT — resolves to gateway-root /hubs/traffic
+        // .withUrl("/hubs/traffic")
+
+        // WRONG — would resolve to /dashboard/hubs/traffic (no matching route)
+        // .withUrl("hubs/traffic")
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/hubs/traffic")
+            .withAutomaticReconnect([0, 1000, 2000, 5000, 10000]) // retry intervals
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        connection.on("StateChanged", (data) => {
+            const circle = document.getElementById(`circle-${data.intersectionId}`);
+            const card = document.getElementById(`intersection-${data.intersectionId}`);
+            const meta = document.getElementById(`meta-${data.intersectionId}`);
+
+            if (!circle) return;
+
+            circle.className = `circle ${data.color}`;
+
+            if (data.isEmergency) {
+                card.classList.add("emergency");
+                meta.textContent = `${data.mode}`;
+            } else {
+                card.classList.remove("emergency");
+                meta.textContent = data.mode;
+            }
+
+            const changedAt = new Date(data.changedAt).getTime();
+            const now = Date.now();
+            const latency = now - changedAt;
+            latencyEl.textContent = `Last update latency: ${latency} ms (Intersection #${data.intersectionId})`;
+        });
+
+        // Connection state handlers
+        connection.onreconnecting(() => {
+            statusEl.textContent = "Reconnecting...";
+            statusEl.className = "connection-status reconnecting";
+        });
+        connection.onreconnected(() => {
+            statusEl.textContent = "Connected";
+            statusEl.className = "connection-status connected";
+        });
+        connection.onclose(() => {
+            statusEl.textContent = "Disconnected";
+            statusEl.className = "connection-status disconnected";
+        });
+
+        // Start the connection
+        async function start() {
+            try {
+                await connection.start();
+                statusEl.textContent = "Connected";
+                statusEl.className = "connection-status connected";
+            } catch (err) {
+                console.error(err);
+                statusEl.textContent = "Disconnected";
+                statusEl.className = "connection-status disconnected";
+                setTimeout(start, 2000); // retry initial connection
+            }
+        }
+
+        start();
+    </script>
+</body>
+</html>
