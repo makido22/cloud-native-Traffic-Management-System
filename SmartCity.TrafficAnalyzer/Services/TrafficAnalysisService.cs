@@ -1,16 +1,28 @@
 ﻿using MassTransit;
+using MassTransit.SqlTransport.Topology;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Http.HttpResults;
 using RabbitMQ.Client;
 using SmartCity.Contracts.Commands;
 using SmartCity.Contracts.Events;
 using SmartCity.TrafficAnalyzer.Models;
 using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using System.Threading.Channels;
 using static MassTransit.Logging.DiagnosticHeaders;
 using static MassTransit.Transports.ReceiveEndpoint;
 
 namespace SmartCity.TrafficAnalyzer.Services;
 
+/// <summary>
+/// Because Kafka guarantees all messages for intersection 101 go to the same partition, and that partition is owned by one replica,
+/// the state.CurrentColor and LastCommandSentAt for intersection 101 are always consistent within that single replica.
+/// Intersection 101 is ALWAYS handled by Replica 0.
+/// → Replica 0's _stats[101] is the single source of truth for 101.
+/// → No other replica ever touches 101.
+/// → The cooldown and color logic remain correct.
+/// The partitioning key inadvertently shards your state correctly. This is a beautiful, accidental consequence of good Kafka design.
+/// </summary>
 public class TrafficAnalysisService : IDisposable
 {
     private readonly ILogger<TrafficAnalysisService> _logger;
@@ -51,7 +63,17 @@ public class TrafficAnalysisService : IDisposable
     public Task AnalyzeAsync(TrafficDataReceived data, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
-        
+
+        //When Kafka rebalances(e.g., a replica crashes, or you scale up / down), partition ownership shifts:
+        //Replica 0 crashes →
+        //Kafka reassigns its partitions(0 - 3) to the surviving replicas.
+        //→ Now Replica 1 suddenly owns intersection 101.
+        //→ But Replica 1's _stats has NO history for 101!
+        //→ state.CurrentColor defaults to null / empty, LastCommandSentAt = MinValue
+        //→ It might send a redundant command or reset the cooldown.
+        //The consequence: A brief moment of "amnesia" after rebalancing. For traffic lights,
+        //this is usually harmless — the next sensor reading re - establishes the state within milliseconds.
+        //"production hardening" approach -> use Redis.
         var state = _stats.AddOrUpdate(
             data.IntersectionId,
             _ => new IntersectionStats { TotalMessages = 1, LastVehicleCount = data.VehicleCount, LastSpeed = data.AverageSpeedKmh },
