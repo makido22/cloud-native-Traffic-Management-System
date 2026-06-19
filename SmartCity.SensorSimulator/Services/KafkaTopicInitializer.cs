@@ -8,6 +8,21 @@ using System.Threading.Tasks;
 
 namespace SmartCity.SensorSimulator.Services
 {
+    /// <summary>
+    /// BackgroundService is not suited, because it is executed asynchronously, TOpic must be created and configured before application runs.
+    /// BackGroundService runs ExecuteAsync inside StartAsync. code below. 
+    /// public virtual Task StartAsync(CancellationToken cancellationToken)
+    ///  {
+    ///  Create linked token to allow cancelling executing task from provided token
+    ///    _stoppingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+    ///  Execute all of ExecuteAsync asynchronously, and store the task we're executing so that we can wait for it later.
+    ///    _executeTask = Task.Run(() => ExecuteAsync(_stoppingCts.Token), _stoppingCts.Token);
+
+    ///  Always return a completed task.  Any result from ExecuteAsync will be handled by the Host.
+    ///    return Task.CompletedTask;
+    ///  }
+    /// </summary>
     public class KafkaTopicInitializer(IConfiguration config, ILogger<KafkaTopicInitializer> logger) : IHostedService
     {
         private readonly IConfiguration _config = config;
@@ -39,6 +54,7 @@ namespace SmartCity.SensorSimulator.Services
 
             try
             {
+                _logger.LogInformation("EXECUTING Create traffic-telemetry Topic.");
                 await adminClient.CreateTopicsAsync(topics);
                 _logger.LogInformation("traffic-telemetry Topic is created.");
             }

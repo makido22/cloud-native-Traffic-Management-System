@@ -30,7 +30,7 @@ public class KafkaProducerService : IDisposable
         _retryChannel = Channel.CreateBounded<Message<byte[], byte[]>>(10_000);
         _statsChannel = Channel.CreateBounded<string>(5);
 
-        // Build the cache: intersection 101-120 → their UTF-8 key bytes
+        // Build the cache: intersection 101-120 → UTF-8 key bytes
         _keyCache = Enumerable.Range(101, 20)
             .ToDictionary(id => id, id => Encoding.UTF8.GetBytes(id.ToString()));
 

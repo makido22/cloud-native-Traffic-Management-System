@@ -68,143 +68,77 @@ graph LR
     SignalR -- "WebSockets" --> YARP
     YARP -- "Live Green/Red UI" --> Admin
 ```
-Smart City Traffic Management — Setup & Run Guide
 
-Prerequisites
+## 🔬 1. Research Methodology
 
-Install the following before running the system:
+This project employs an **Experimental and Quantitative Research Methodology** to evaluate the performance, resilience, and security of an Event-Driven Architecture (EDA) under extreme load. 
 
-1. .NET SDK 8.0 (or later)
+### 1.1. Research Approach
+The study utilizes a comparative and stress-testing approach, specifically employing a **Dual-Vector Testing Strategy** to validate the architectural design:
+*   **Backend Throughput Testing (The "Dam"):** Simulating high-frequency IoT sensor data (the "Thundering Herd") bypassing HTTP to directly hit Apache Kafka. This measures the system's ability to utilize backpressure and load-leveling without dropping critical city data.
+*   **Edge Defense Testing (The "Bouncer"):** Simulating malicious DDoS attacks and spam requests against the HTTP API Gateway to validate the efficacy of distributed rate limiting.
+*   **Chaos Engineering (Resilience Testing):** Intentionally terminating critical microservices during active message processing to verify temporal decoupling and zero-message-loss guarantees via RabbitMQ.
 
-# Verify installation
-dotnet --version   # should output 8.0.x or higher
+### 1.2. Data Collection & Metrics
+Data will be collected using **OpenTelemetry** (integrated via .NET Aspire). The primary metrics for evaluation include:
+*   **End-to-End Latency:** Time taken from sensor ingestion to state mutation.
+*   **System Uptime & Resource Utilization:** CPU and memory consumption of the processing nodes during traffic spikes.
+*   **API Rejection Rate:** Successful HTTP `429 Too Many Requests` responses during simulated API floods.
 
-Download: https://dotnet.microsoft.com/download
+---
 
-2. Docker Desktop
+## 🛠️ 2. Tools and Approaches Used
 
-Required to run the containerized infrastructure (PostgreSQL, Redis, RabbitMQ, Kafka).
+The project bridges academic distributed systems theory with modern, industry-standard cloud-native tooling.
 
-# Verify installation and that the engine is running
-docker --version
-docker ps          # should run without errors
+### 2.1. Architectural Approaches
+*   **The "Two Front Doors" Pattern:** Separating ingestion methods based on actor type. IoT sensors utilize continuous TCP streams (Kafka) for high-throughput absorption, while external actors (Ambulances/Web UI) utilize an HTTP API Gateway for strict security and routing.
+*   **Event-Driven Architecture (EDA) & Temporal Decoupling:** Ensuring the sender and receiver do not need to be online simultaneously, preventing cascading system failures.
+*   **Distributed Rate Limiting:** Utilizing a centralized cache to enforce API throttling across a horizontally scaled microservice cluster, preventing "limit leakage" behind load balancers.
+*   **Distributed State Locking:** Preventing database race conditions during emergency overrides using high-speed, TTL-based caching.
 
-Download: https://www.docker.com/products/docker-desktop
+### 2.2. Technology Stack
+*   **Core Framework:** `.NET 9` (C#)
+*   **Orchestration & Observability:** `.NET Aspire` (Local container management, service discovery, and OpenTelemetry dashboards).
+*   **Edge Routing / API Gateway:** `YARP` (Yet Another Reverse Proxy) to secure internal microservices and route HTTP/WebSocket traffic.
+*   **High-Throughput Ingestion:** `Apache Kafka` (Acts as a shock-absorber for massive streams of IoT sensor data).
+*   **Command & Control Routing:** `RabbitMQ` with `MassTransit` (Handles reliable, priority-based command execution).
+*   **High-Speed Distributed State:** `Redis` (Manages 60-second TTL intersection locks and centralized API Rate Limiting).
+*   **Persistent Storage:** `PostgreSQL` with `Entity Framework Core` (Stores permanent intersection configurations and history).
+*   **Real-Time Visualization:** `SignalR` (WebSockets for pushing live traffic light state changes to a web dashboard).
+*   **Containerization:** `Docker` (Hosts all infrastructure dependencies).
 
-⚠️ Docker Desktop must be running before you start the application. Aspire provisions all infrastructure as Docker containers automatically.
+---
 
+## 📅 3. Detailed Project Plan
 
+The project is executed over a 14-week academic semester, divided into five major milestones.
 
-3. .NET Aspire Workload
+### Phase 1: Infrastructure & Skeleton (Weeks 1-2)
+*   **Objective:** Establish the cloud-native foundation.
+*   **Tasks:** Initialize .NET Aspire AppHost. Configure Docker containers for Kafka, RabbitMQ, PostgreSQL, and Redis. Verify OpenTelemetry dashboard connectivity.
+*   **Deliverable:** Running infrastructure with zero business logic.
 
-dotnet workload update
-dotnet workload install aspire
+### Phase 2: Telemetry Pipeline (Weeks 3-5)
+*   **Objective:** Implement the "Observation Plane" (High-Throughput).
+*   **Tasks:** Develop the `SensorSimulator` worker service to generate dummy IoT data. Implement Kafka producers. Develop the `TrafficAnalyzer` to consume the Kafka stream using backpressure.
+*   **Deliverable:** System successfully ingests and logs 1,000+ sensor messages per second without memory overflow.
 
-# Verify
-dotnet workload list   # 'aspire' should appear
+### Phase 3: Command Routing & State (Weeks 6-8)
+*   **Objective:** Implement the "Action Plane" (High-Reliability).
+*   **Tasks:** Define shared message contracts. Configure MassTransit for RabbitMQ. Develop the `TrafficLightController` to consume commands and mutate PostgreSQL state.
+*   **Deliverable:** `TrafficAnalyzer` successfully triggers database updates via RabbitMQ.
 
+### Phase 4: Edge Routing & Emergency Override (Weeks 9-11)
+*   **Objective:** Implement the API Gateway, priority routing, and visualization.
+*   **Tasks:** Deploy YARP as the API Gateway. Develop the `EmergencyAPI`. Implement Redis for both Distributed Rate Limiting (in YARP) and TTL intersection locks. Build a basic SignalR hub to broadcast state changes.
+*   **Deliverable:** Emergency commands bypass standard queues, lock the intersection via Redis, and update the SignalR dashboard in real-time.
 
-How to Run
+### Phase 5: Testing, Metrics, & Documentation (Weeks 12-14)
+*   **Objective:** Validate the research methodology and finalize the thesis.
+*   **Tasks:** Conduct Dual-Vector load tests (Kafka throughput vs. YARP rate limiting). Perform container crash simulations. Export OpenTelemetry graphs. Write the final academic paper.
+*   **Deliverable:** Final thesis submission and project defense presentation.
 
-Step 1: Clone the Repository
+---
 
-git clone <your-repo-url>
-cd <repo-folder>
-
-Step 2: Restore Dependencies
-
-dotnet restore
-
-Step 3: Run the AppHost
-
-The Aspire AppHost orchestrates everything — it starts all infrastructure containers and all microservices with a single command:
-
-dotnet run --project SmartCity.AppHost
-
-That's it. There is no manual setup for PostgreSQL, Redis, RabbitMQ, or Kafka — Aspire pulls the Docker images, starts the containers, wires up the connection strings, and launches every service automatically.
-
-Step 4: Open the Aspire Dashboard
-
-After startup, the console prints a dashboard URL with a login token:
-
-Login to the dashboard at: https://localhost:17000/login?t=<token>
-
-Open this URL in your browser. The dashboard shows all running services, their health, logs, traces, and metrics.
-
-
-What Gets Started
-
-Component Type Purpose
-PostgreSQL Infrastructure Persistent intersection state storage
-Redis Infrastructure Caching, distributed locks, rate limiting
-RabbitMQ Infrastructure Command & control message broker
-Kafka Infrastructure High-throughput telemetry stream
-SensorSimulator Service Generates simulated IoT traffic data
-TrafficAnalyzer Service (×4) Analyzes telemetry, detects congestion
-TrafficLightController Service Applies state changes to PostgreSQL
-EmergencyAPI Service Handles emergency vehicle routing
-DashboardService Service Real-time SignalR dashboard
-Gateway Service (×3) Single external entry point (YARP)
-
-
-Accessing the System
-
-Once running, find the live URLs in the Aspire Dashboard. Key endpoints:
-
-Real-Time Dashboard (Live Traffic Map)
-
-Access through the gateway:
-
-http://localhost:<gateway-port>/dashboard/
-
-Shows 20 intersections as colored circles that update in real time.
-
-Trigger an Emergency (Test)
-
-curl -X POST http://localhost:<gateway-port>/emergency/route \
-  -H "Content-Type: application/json" \
-  -d '{
-    "vehicleId": "AMBULANCE-911",
-    "intersectionIds": [101, 102, 103, 104, 105],
-    "direction": "Northbound",
-    "priority": 10
-  }'
-
-Watch the dashboard — intersections 101–105 respond within ~1 second.
-
-Infrastructure Management UIs
-
-Each broker/database includes a built-in web UI, accessible via the Aspire Dashboard:
-
-UI Inspects
-pgAdmin PostgreSQL database
-Redis Commander Redis keys
-RabbitMQ Management Queues & messages
-Kafka UI Topics & messages
-
-
-Stopping the System
-
-Press Ctrl + C in the terminal running the AppHost. Aspire gracefully shuts down all services and containers.
-
-To remove persisted data volumes (e.g., Kafka data):
-
-docker volume ls          # list volumes
-docker volume prune       # remove unused volumes
-
-
-Troubleshooting
-
-Problem Solution
-Docker is not running Start Docker Desktop and wait until it's fully running
-Ports already in use Stop conflicting processes or restart Docker
-Containers fail to start Run docker ps -a to inspect; ensure enough RAM is allocated to Docker (≥ 8GB recommended)
-Services stuck "Waiting" A dependency (e.g., PostgreSQL) is still starting — wait a moment
-Aspire workload missing Re-run dotnet workload install aspire
-
-
-System Requirements (Recommended)
-
-Disk: ~5GB free for Docker images
-OS: Windows 10/11, macOS, or Linux
 ---

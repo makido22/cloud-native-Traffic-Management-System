@@ -191,7 +191,6 @@
             latencyEl.textContent = `Last update latency: ${latency} ms (Intersection #${data.intersectionId})`;
         });
 
-        // Connection state handlers
         connection.onreconnecting(() => {
             statusEl.textContent = "Reconnecting...";
             statusEl.className = "connection-status reconnecting";
@@ -205,7 +204,6 @@
             statusEl.className = "connection-status disconnected";
         });
 
-        // Start the connection
         async function start() {
             try {
                 await connection.start();

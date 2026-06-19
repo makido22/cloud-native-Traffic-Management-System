@@ -27,7 +27,7 @@ public class TrafficAnalysisService : IDisposable
     // vehicles
     private const int CongestionThreshold = 70; 
     private const int ClearThreshold = 30;
-    private static readonly TimeSpan CommandCooldown = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan CommandCooldown = TimeSpan.FromSeconds(5);
 
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _analyzerTask;
@@ -155,10 +155,16 @@ public class TrafficAnalysisService : IDisposable
     {
         try
         {
+            var total = 0L;
             while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(60000, ct);
-                _logger.LogInformation("TrafficAnalysis. {@Statistics}", _stats);
+                await Task.Delay(1000, ct);
+                foreach (var intersection in _stats)
+                {
+                    total += intersection.Value.TotalMessages;
+                }
+                _logger.LogInformation("TrafficAnalysis. {Recieving {total} Msgs/sec}", total);
+                total = 0;
             }
         }
         catch (OperationCanceledException) { /* clean exit */ }

@@ -26,7 +26,7 @@ public class Worker(
     private async Task RunProducerLoop(int workerId, CancellationToken ct)
     {
         var perWorkerRate = _config.Value.TargetMessagesPerSecond / _config.Value.ProducerThreads;
-        var delayMs = TimeSpan.FromSeconds(1.0 / perWorkerRate);
+        var delayMs = TimeSpan.FromSeconds(1.0 / perWorkerRate); // 1msg/ms
 
         _logger.LogInformation(
             "Sensor Simulator Thread {threadId} started. Generating {Rate} messages/sec",
@@ -41,8 +41,7 @@ public class Worker(
             _producer.Publish(data);
             totalSent++;
 
-            // Log progress every 1000 messages
-            if (totalSent % 5000 == 0)
+            if (totalSent % 4000 == 0)
             {
                 var elapsed = (DateTime.UtcNow - startTime).TotalSeconds;
                 var rate = totalSent / elapsed;

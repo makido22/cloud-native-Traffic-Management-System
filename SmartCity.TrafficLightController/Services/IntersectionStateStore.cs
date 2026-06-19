@@ -89,7 +89,6 @@ public class IntersectionStateStore(ILogger<IntersectionStateStore> logger, ISer
                 // Save — this is where concurrency check happens
                 await db.SaveChangesAsync(cancellationToken);
 
-
                 _logger.LogInformation(
                     "DB Updated: Intersection {Id} → {Color} (was {Previous})",
                     intersectionId, targetColor, previousColor);
